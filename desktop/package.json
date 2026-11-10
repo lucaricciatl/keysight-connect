@@ -12,6 +12,7 @@
     "build:web": "npm --prefix ../web run build",
     "build:backend": "bash scripts/build-backend.sh",
     "dist": "bash scripts/build-app.sh",
+    "release": "bash scripts/release.sh",
     "icon": "python3 scripts/make-icon.py",
     "probe": "node --experimental-websocket scripts/probe.js"
   },

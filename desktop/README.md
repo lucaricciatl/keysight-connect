@@ -11,6 +11,7 @@ splash.html      boot screen shown while uvicorn starts
 scripts/build-backend.sh   freeze server/entrypoint.py with PyInstaller
 scripts/build-app.sh       one-shot pipeline: web + backend + .app/.dmg
 scripts/after-pack.js      ad-hoc codesign after packing, before the .dmg
+scripts/release.sh         publish the .app/.dmg as a GitHub release
 scripts/make-icon.py       generates build/icon.png (Dock icon)
 scripts/probe.js           reads the live DOM over CDP (verification)
 ```
@@ -44,6 +45,16 @@ That runs `scripts/build-app.sh`:
    `release/mac-arm64/Keysight Connect.app`, plus `release/Keysight Connect-<version>-arm64.dmg`
 
 Drag the `.app` to `/Applications`, or open the `.dmg` and drag it across.
+
+Publish the build as a GitHub release (needs `gh` authenticated):
+
+```bash
+npm run release            # tags v<version>, uploads the .dmg and a zipped .app
+npm run release -- v0.2.0  # explicit tag
+```
+
+`scripts/release.sh` zips the `.app` with `ditto` so symlinks and the code
+signature survive — a plain folder zip produces an app that will not launch.
 
 Output is unsigned by Apple but ad-hoc signed by `scripts/after-pack.js`, which
 is what makes it launch on Apple Silicon. On another Mac the first launch still
