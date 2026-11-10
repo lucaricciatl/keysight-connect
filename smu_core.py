@@ -29,6 +29,8 @@ CURR_RANGES = (1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0, 3.0)  # A
 MAX_VOLT = 210.0             # B2901B: 210 V
 MAX_CURR = 3.03              # B2901B: 3.03 A
 
+WIRE_MODES = ("2W", "4W")    # local (2-wire) or remote/Kelvin (4-wire) sensing
+
 
 class SmuError(RuntimeError):
     """Anything that went wrong talking to the instrument."""
@@ -85,6 +87,35 @@ def pick_range(value: float, ranges: Sequence[float]) -> float:
         if mag <= r:
             return r
     return ranges[-1]
+
+
+def norm_wire(value: object) -> bool:
+    """Normalise any 2W/4W spelling into a ``four_wire`` boolean.
+
+    Accepts ``True``/``False``, the ints 2 and 4, and strings such as
+    ``"2W"``, ``"4-wire"``, ``"FOURWIRE"``, ``"REMOTE"``, ``"ON"``/``"OFF"``.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        if int(value) == 4:
+            return True
+        if int(value) == 2:
+            return False
+        raise SmuError(f"Unknown wire mode {value!r} (use 2W or 4W)")
+    text = re.sub(r"[^A-Z0-9]", "", str(value).upper())
+    if text in ("4W", "4WIRE", "FOURWIRE", "FOUR", "4",
+                "KELVIN", "REMOTE", "ON", "TRUE"):
+        return True
+    if text in ("2W", "2WIRE", "TWOWIRE", "TWO", "2", "LOCAL", "OFF", "FALSE"):
+        return False
+    raise SmuError(f"Unknown wire mode {value!r} (use 2W or 4W)")
+
+
+def wire_label(four_wire: bool) -> str:
+    """Canonical short label for a sensing mode."""
+    return "4W" if four_wire else "2W"
+
 
 
 def scan_lan(ip_hint: str, port: int = DEFAULT_PORT,
@@ -319,8 +350,15 @@ class B2901B:
 
     def configure(self, sour_func: str = "VOLT", level: float = 0.0,
                   compliance: float = 1e-3, auto_range: bool = True,
-                  sour_range: Optional[float] = None) -> None:
-        """Set source function, level, compliance limit and ranges."""
+                  sour_range: Optional[float] = None,
+                  wire: Optional[object] = None) -> None:
+        """Set source function, level, compliance limit, ranges and sensing.
+
+        ``wire`` selects the measurement wiring: ``"2W"`` (local sense) or
+        ``"4W"`` (remote/Kelvin sense).  Leave it None to keep whatever the
+        instrument is already set to.
+        """
+
         src = self._norm_func(sour_func)
         meas = "CURR" if src == "VOLT" else "VOLT"
         level = float(level)
@@ -339,6 +377,8 @@ class B2901B:
         self.write(f":SOURce:FUNCtion:MODE {src}")
         self.write(":SOURce:FUNCtion:SHAPe DC")
         self.write(f':SENSe:FUNCtion "{meas}"')
+        if wire is not None:
+            self.set_wire(wire)
 
         # compliance = protection on the quantity we are measuring
         self.write(f":SENSe:{meas}:PROTection {compliance:.9g}")
@@ -358,6 +398,32 @@ class B2901B:
         except SmuError:
             pass
         self.check()
+
+    def set_wire(self, wire: object = "2W") -> bool:
+        """Select 2-wire (local) or 4-wire (remote/Kelvin) sensing.
+
+        Sends ``:SENSe:REMote`` and reads the state back, returning True when
+        the instrument reports 4-wire sensing enabled.  A refused 4-wire
+        request raises rather than leaving the user believing it took effect.
+        """
+        four = norm_wire(wire)
+        self.write(f":SENSe:REMote {'ON' if four else 'OFF'}")
+        try:
+            raw = self.query(":SENSe:REMote?")
+        except SmuError:
+            self.check()
+            return four
+        on = raw.strip().upper() in ("1", "ON")
+        if four and not on:
+            raise SmuError(
+                "Instrument refused 4-wire sensing (remote sense is not "
+                "available on the 3 A range)")
+        self.check()
+        return on
+
+    def wire_state(self) -> str:
+        """Read back the sensing mode actually in effect: "2W" or "4W"."""
+        return wire_label(self.query(":SENSe:REMote?").strip().upper() in ("1", "ON"))
 
     def measure(self, func: str = "CURR") -> float:
         """Single spot measurement, returns amps or volts."""
@@ -379,7 +445,8 @@ class B2901B:
                      period_s: float = 10e-3, pulse_delay_s: float = 0.5e-3,
                      aperture_s: float = 0.1e-3, compliance: float = 1e-3,
                      count: int = 10,
-                     acq_delay_s: Optional[float] = None) -> None:
+                     acq_delay_s: Optional[float] = None,
+                     wire: Optional[object] = None) -> None:
         """Program a hardware-timed pulse train (B2900 :SOUR:PULS).
 
         base is output continuously; each trigger produces one peak pulse of
@@ -420,6 +487,8 @@ class B2901B:
         self.write(f":SOURce:FUNCtion:MODE {src}")
         self.write(":SOURce:FUNCtion:SHAPe PULSe")
         self.write(f':SENSe:FUNCtion "{meas}"')
+        if wire is not None:
+            self.set_wire(wire)
         self.write(f":SOURce:{src}:RANGe:AUTO OFF")
         self.write(f":SOURce:{src}:RANGe {src_range:.9g}")
         self.write(f":SENSe:{meas}:RANGe:AUTO OFF")
@@ -651,9 +720,10 @@ class SyncGroup:
     # -- operations --------------------------------------------------------
 
     def configure(self, sour_func: str = "VOLT", level: float = 0.0,
-                  compliance: float = 1e-3, auto_range: bool = True) -> None:
+                  compliance: float = 1e-3, auto_range: bool = True,
+                  wire: Optional[object] = None) -> None:
         self._run(lambda u: u.configure(sour_func, level, compliance,
-                                        auto_range=auto_range))
+                                        auto_range=auto_range, wire=wire))
 
     def output(self, on: bool) -> list[bool]:
         return self._run(lambda u: u.output(on))
@@ -687,6 +757,37 @@ class SyncGroup:
         for unit in self.units:
             values.append(unit.measure(func))
         return values, 0.0
+
+    def measure_both_synced(self) -> tuple[list[tuple[float, float]], float]:
+        """One (volts, amps) pair per unit.  Returns (pairs, skew_seconds).
+
+        Same trigger machinery as measure_synced(), but keeps both quantities
+        so the caller can compute resistance and power without a second
+        acquisition.
+        """
+        self.last_skew = 0.0
+        if self.mode == "trigger":
+            try:
+                self._run(lambda u: u.prepare_trigger())
+                try:
+                    self._run(lambda u: u.arm())
+                    stamps = self._run_timed(lambda u: u.trigger())
+                    self.last_skew = max(stamps) - min(stamps)
+                    self._run(lambda u: u.query("*OPC?"))
+                    pairs = self._run(lambda u: u.fetch_both())
+                finally:
+                    self._run(lambda u: u.restore_auto_trigger())
+                return pairs, self.last_skew
+            except Exception as exc:                       # noqa: BLE001
+                self._fallback(exc)
+
+        if self.mode == "parallel":
+            return self._run(lambda u: u.measure_both()), 0.0
+
+        pairs = []
+        for unit in self.units:
+            pairs.append(unit.measure_both())
+        return pairs, 0.0
 
     # -- pulsed output -----------------------------------------------------
 

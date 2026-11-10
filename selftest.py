@@ -174,6 +174,16 @@ def sync_checks(port_a: int, port_b: int, port_c: int) -> None:
         check("sync: both measure 0.5 V",
               close(volts[0], 0.5) and close(volts[1], 0.5), str(volts))
 
+        pairs, pair_skew = group.measure_both_synced()
+        check("sync: paired V/I on A = 0.5 V, 5 mA",
+              close(pairs[0][0], 0.5) and close(pairs[0][1], 0.005),
+              str(pairs[0]))
+        check("sync: paired V/I on B = 0.5 V, 2.5 mA",
+              close(pairs[1][0], 0.5) and close(pairs[1][1], 0.0025),
+              str(pairs[1]))
+        check("sync: paired skew small", 0.0 <= pair_skew < 0.2,
+              f"{pair_skew * 1e3:.3f} ms")
+
         data = group.sweep_synced("VOLT", 0.0, 1.0, 5, delay_s=0.0)
         check("sync: sweep 5 points", len(data) == 5, str(len(data)))
         check("sync: sweep end 10 mA / 5 mA",

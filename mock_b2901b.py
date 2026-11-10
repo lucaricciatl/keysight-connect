@@ -18,13 +18,17 @@ import sys
 import time
 
 LOAD_OHMS = 100.0
+LEAD_OHMS = 0.0          # cable + contact resistance seen by 2-wire sensing
+                         # (set --lead 0.5 to make 2-wire read high)
 IDN = "Keysight Technologies,B2901B,B2901B-MY00000000,3.2.0.0"
 
 
 class FakeB2901B:
     def __init__(self, load_ohms: float = LOAD_OHMS,
-                 support_trigger: bool = True) -> None:
+                 support_trigger: bool = True,
+                 lead_ohms: float = LEAD_OHMS) -> None:
         self.load_ohms = load_ohms
+        self.lead_ohms = lead_ohms
         self.support_trigger = support_trigger
         self.reset()
 
@@ -48,6 +52,7 @@ class FakeB2901B:
         self.trig_coun = 1
         self.acq_del = 0.0
         self.aper = 1e-4
+        self.four_wire = False
         self.pulse_t0: float | None = None
         self.pulse_frozen: list[tuple[float, float]] | None = None
 
@@ -55,14 +60,17 @@ class FakeB2901B:
     def values_at(self, level: float) -> tuple[float, float]:
         if not self.output:
             return 0.0, 0.0
+        # 2-wire sensing measures at the terminals, so the leads' resistance
+        # adds to the load; 4-wire senses at the DUT and cancels it.
+        r_total = self.load_ohms + (0.0 if self.four_wire else self.lead_ohms)
         if self.src_func == "VOLT":
-            v = level
-            i = v / self.load_ohms
+            i = level / r_total
             if abs(i) > self.compliance:
                 i = self.compliance if i > 0 else -self.compliance
+            v = i * self.load_ohms          # voltage the sense leads report
             return v, i
         i = level
-        v = i * self.load_ohms
+        v = i * r_total                    # terminal volts in 2-wire
         if abs(v) > self.compliance:
             v = self.compliance if v > 0 else -self.compliance
         return v, i
@@ -206,6 +214,14 @@ class FakeB2901B:
             self.aper = float(m.group(5))
             return None
 
+        # ---- 4-wire (remote sense)
+        m = re.match(r"^:SENS(E)?:REM(OTE)?\s+(ON|OFF|1|0)$", upper)
+        if m:
+            self.four_wire = m.group(3) in ("ON", "1")
+            return None
+        if re.match(r"^:SENS(E)?:REM(OTE)?\?$", upper):
+            return "1" if self.four_wire else "0"
+
         m = re.match(r"^:FORM(AT)?:ELEM(ENTS)?:SENS(E)?\s+(.+)$", upper)
         if m:
             self.elem = [e for e in re.split(r"[,\s]+", m.group(4)) if e]
@@ -327,10 +343,11 @@ class Server(socketserver.ThreadingTCPServer):
 
 def serve(port: int = 5025, verbose: bool = False,
           load_ohms: float = LOAD_OHMS,
-          support_trigger: bool = True) -> Server:
+          support_trigger: bool = True,
+          lead_ohms: float = LEAD_OHMS) -> Server:
     """Start the mock in a background-capable server (call serve_forever)."""
     server = Server(("127.0.0.1", port), Handler)
-    server.fake = FakeB2901B(load_ohms, support_trigger)   # type: ignore[attr-defined]
+    server.fake = FakeB2901B(load_ohms, support_trigger, lead_ohms)  # type: ignore[attr-defined]
     Handler.verbose = verbose
     return server
 
@@ -340,13 +357,15 @@ if __name__ == "__main__":
     ap.add_argument("--port", type=int, default=5025)
     ap.add_argument("--load", type=float, default=LOAD_OHMS,
                     help="simulated load resistance in ohms")
+    ap.add_argument("--lead", type=float, default=LEAD_OHMS,
+                    help="lead resistance added by 2-wire sensing, in ohms")
     ap.add_argument("--no-trigger", action="store_true",
                     help="reject BUS triggering (tests the fallback path)")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
-    srv = serve(a.port, a.verbose, a.load, not a.no_trigger)
+    srv = serve(a.port, a.verbose, a.load, not a.no_trigger, a.lead)
     print(f"mock B2901B listening on 127.0.0.1:{a.port}  "
-          f"(load {a.load:g} ohm, trigger "
+          f"(load {a.load:g} ohm, lead {a.lead:g} ohm, trigger "
           f"{'off' if a.no_trigger else 'on'})", flush=True)
     try:
         srv.serve_forever()
