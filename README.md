@@ -32,6 +32,8 @@ in the log.
 | `smu_core.py` | GUI-free SCPI/VISA layer: connect, source, measure, sweep, pulse, 2W/4W sensing, BUS-triggered sync |
 | `server/app.py` | FastAPI backend: REST under `/api/…`, live websocket on `/ws`, serves the built front-end |
 | `web/` | React + TypeScript + Vite front-end |
+| `desktop/` | Electron shell: owns the backend process, builds a double-clickable `.app` / `.dmg` |
+| `server/entrypoint.py` | entry point for the frozen (PyInstaller) desktop backend |
 | `keysight_gui.py` | Tkinter front-end: Source/Measure, synchronized I–V sweep, SCPI console |
 | `mock_b2901b.py` | Fake B2901B on a TCP port (simulates a resistive load with compliance clipping) |
 | `selftest.py` | Exercises `smu_core` against the mocks: single unit, synchronized pair, BUS-trigger fallback |
@@ -44,6 +46,8 @@ in the log.
 pip install pyvisa pyvisa-py fastapi uvicorn
 cd web && npm install
 ```
+
+The web app and the desktop shell need Node 20+; the Tkinter app does not.
 
 Tkinter ships with python.org builds and Homebrew Python; on Debian/Ubuntu
 install `python3-tk`.
@@ -75,6 +79,32 @@ Rebuild the bundle that the backend serves with:
 ```bash
 cd web && npm run build
 ```
+
+## Desktop app (Electron)
+
+The same UI as a native window, with no terminal and no browser tab. The
+Electron shell starts the backend itself and points the window at it, so the
+front-end is unchanged.
+
+```bash
+cd desktop
+npm install
+npm start          # normal run: backend on a free port
+npm run dev        # backend :8000 + Vite :5173, hot reload
+npm run dist       # build "Keysight Connect.app" + .dmg into desktop/release/
+```
+
+`npm run dist` runs `desktop/scripts/build-app.sh`, which bundles the web app,
+freezes the backend with PyInstaller, and packs both with electron-builder. The
+resulting app needs no Python on the target machine; drag it to
+`/Applications` and double-click.
+
+The bundle is ad-hoc signed, not notarised, so the first launch on another Mac
+needs right-click → Open (or `xattr -dr com.apple.quarantine`). Sessions live in
+`~/Library/Application Support/Keysight Connect/data/` (File → Open Data Folder).
+
+See `desktop/README.md` for the layout, environment variables and the CDP probe
+used to verify a running window.
 
 ## Quick start — Tkinter app
 

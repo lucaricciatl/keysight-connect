@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"
+    />
+    <title>Keysight Connect</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        background: radial-gradient(120% 90% at 50% 0%, #0d1722 0%, #060a0f 62%);
+        color: #c8d6e5;
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        -webkit-user-select: none;
+      }
+      .wrap { text-align: center; transform: translateY(-6px); }
+      .mark {
+        width: 54px; height: 54px; margin: 0 auto 22px;
+        border-radius: 14px;
+        border: 1px solid #1e3346;
+        background: linear-gradient(160deg, #12222f, #0a1219);
+        display: grid; place-items: center;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+      }
+      .mark span {
+        font: 600 20px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #5fd0c0;
+        letter-spacing: .5px;
+      }
+      h1 { margin: 0 0 6px; font-size: 15px; font-weight: 600; letter-spacing: .2px; color: #e6eef7; }
+      p { margin: 0; color: #6f8496; font-size: 12px; }
+      .bar {
+        width: 160px; height: 2px; margin: 20px auto 0;
+        background: #12202c; border-radius: 2px; overflow: hidden;
+      }
+      .bar::after {
+        content: ""; display: block; width: 40%; height: 100%;
+        background: linear-gradient(90deg, transparent, #5fd0c0, transparent);
+        animation: slide 1.15s ease-in-out infinite;
+      }
+      @keyframes slide {
+        from { transform: translateX(-100%); }
+        to   { transform: translateX(350%); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="mark"><span>B29</span></div>
+      <h1>Keysight Connect</h1>
+      <p>Starting instrument service…</p>
+      <div class="bar"></div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+node_modules/
+release/
+backend-dist/
+.pyinstaller/
+*.log
+.DS_Store

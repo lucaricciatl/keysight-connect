@@ -23,6 +23,7 @@ import asyncio
 import csv
 import io
 import json
+import os
 import re
 import threading
 import time
@@ -42,7 +43,9 @@ from pydantic import BaseModel, Field
 import smu_core as smu
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# The Electron shell sets KEYSIGHT_DATA_DIR so a packaged app writes sessions
+# to its user-data folder instead of inside the (read-only) app bundle.
+DATA_DIR = Path(os.environ.get("KEYSIGHT_DATA_DIR", ROOT / "data")).expanduser()
 DIST = ROOT / "web" / "dist"
 
 IO_LOCK = threading.RLock()

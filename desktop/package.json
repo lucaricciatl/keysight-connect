@@ -1,0 +1,57 @@
+{
+  "name": "keysight-connect",
+  "productName": "Keysight Connect",
+  "version": "0.1.0",
+  "description": "Desktop app for Keysight B2901B source/measure units",
+  "author": "Luca Ricci",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "KEYSIGHT_DEV=1 electron .",
+    "build:web": "npm --prefix ../web run build",
+    "build:backend": "bash scripts/build-backend.sh",
+    "dist": "bash scripts/build-app.sh"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.lucaricci.keysightconnect",
+    "productName": "Keysight Connect",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "backend",
+        "filter": [
+          "smu_core.py",
+          "README.md",
+          "server/*.py",
+          "web/dist/**/*",
+          "!**/__pycache__/**"
+        ]
+      },
+      {
+        "from": "backend-dist",
+        "to": "backend/keysight-backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [{ "target": "dmg", "arch": ["arm64"] }]
+    }
+  }
+}
