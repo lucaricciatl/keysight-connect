@@ -7,6 +7,7 @@ import the app by module string, so pass the app object to uvicorn directly.
 from __future__ import annotations
 
 import argparse
+import os
 
 
 def main() -> None:
@@ -20,6 +21,8 @@ def main() -> None:
     from server.app import app
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    # See server/app.py: pyvisa's socket threads outlive a graceful shutdown.
+    os._exit(0)
 
 
 if __name__ == "__main__":

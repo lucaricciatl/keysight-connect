@@ -25,6 +25,7 @@ import io
 import json
 import os
 import re
+import sys
 import threading
 import time
 import uuid
@@ -46,10 +47,64 @@ ROOT = Path(__file__).resolve().parent.parent
 # The Electron shell sets KEYSIGHT_DATA_DIR so a packaged app writes sessions
 # to its user-data folder instead of inside the (read-only) app bundle.
 DATA_DIR = Path(os.environ.get("KEYSIGHT_DATA_DIR", ROOT / "data")).expanduser()
-DIST = ROOT / "web" / "dist"
+
+
+def _find_dist() -> Path:
+    """Locate the built front-end.
+
+    From a checkout this is `<repo>/web/dist`.  Inside a frozen (PyInstaller)
+    build the module path no longer points at the repo, so fall back to the
+    layout electron-builder produces: Resources/backend/web/dist two levels
+    above the executable, which lives in Resources/backend/keysight-backend/.
+    """
+    override = os.environ.get("KEYSIGHT_DIST")
+    if override:
+        return Path(override).expanduser()
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        for candidate in (exe_dir.parent.parent / "web" / "dist",
+                          exe_dir / "web" / "dist",
+                          exe_dir.parent / "web" / "dist"):
+            if candidate.is_dir():
+                return candidate
+    return ROOT / "web" / "dist"
+
+
+DIST = _find_dist()
 
 IO_LOCK = threading.RLock()
 APP_STARTED = time.time()
+
+
+def _watch_parent() -> None:
+    """Shut down if the desktop shell that spawned us goes away.
+
+    The Electron shell sends SIGTERM on a normal quit, but a crash or a forced
+    kill would otherwise leave this server holding its port.  Only active when
+    KEYSIGHT_PARENT_PID is set, so `python3 -m server.app` is unaffected.
+    """
+    raw = os.environ.get("KEYSIGHT_PARENT_PID")
+    if not raw:
+        return
+    try:
+        parent = int(raw)
+    except ValueError:
+        return
+
+    def loop() -> None:
+        while True:
+            time.sleep(2.0)
+            if os.getppid() != parent:
+                try:
+                    add_log(None, "desktop shell exited, shutting down", "info")
+                except Exception:                      # noqa: BLE001
+                    pass
+                os._exit(0)
+
+    threading.Thread(target=loop, daemon=True, name="parent-watch").start()
+
+
+_watch_parent()
 
 
 # ---------------------------------------------------------------------------
@@ -1208,6 +1263,9 @@ def main() -> None:
     import uvicorn
     uvicorn.run("server.app:app", host=args.host, port=args.port,
                 reload=args.reload)
+    # uvicorn returns on SIGTERM, but a third-party non-daemon thread (the
+    # pyvisa-py socket backend) can keep the interpreter alive afterwards.
+    os._exit(0)
 
 
 if __name__ == "__main__":

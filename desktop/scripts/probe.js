@@ -17,6 +17,16 @@ const path = require('node:path');
 
 const CDP_PORT = process.env.CDP_PORT || 9222;
 
+if (typeof WebSocket === 'undefined') {
+  console.error(
+    'This Node has no global WebSocket (Node 20 needs a flag). Re-run with:\n' +
+    '  node --experimental-websocket scripts/probe.js\n' +
+    'or\n' +
+    '  ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron scripts/probe.js',
+  );
+  process.exit(1);
+}
+
 async function targets() {
   const res = await fetch(`http://127.0.0.1:${CDP_PORT}/json`);
   if (!res.ok) throw new Error(`CDP HTTP ${res.status}`);

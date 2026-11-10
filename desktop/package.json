@@ -11,7 +11,9 @@
     "dev": "KEYSIGHT_DEV=1 electron .",
     "build:web": "npm --prefix ../web run build",
     "build:backend": "bash scripts/build-backend.sh",
-    "dist": "bash scripts/build-app.sh"
+    "dist": "bash scripts/build-app.sh",
+    "icon": "python3 scripts/make-icon.py",
+    "probe": "node --experimental-websocket scripts/probe.js"
   },
   "devDependencies": {
     "electron": "^45.2.3",
@@ -44,11 +46,12 @@
         ]
       },
       {
-        "from": "backend-dist",
+        "from": "backend-dist/keysight-backend",
         "to": "backend/keysight-backend",
         "filter": ["**/*"]
       }
     ],
+    "afterPack": "scripts/after-pack.js",
     "mac": {
       "category": "public.app-category.utilities",
       "target": [{ "target": "dmg", "arch": ["arm64"] }]

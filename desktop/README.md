@@ -10,6 +10,8 @@ preload.js       read-only window.keysight bridge (sandboxed)
 splash.html      boot screen shown while uvicorn starts
 scripts/build-backend.sh   freeze server/entrypoint.py with PyInstaller
 scripts/build-app.sh       one-shot pipeline: web + backend + .app/.dmg
+scripts/after-pack.js      ad-hoc codesign after packing, before the .dmg
+scripts/make-icon.py       generates build/icon.png (Dock icon)
 scripts/probe.js           reads the live DOM over CDP (verification)
 ```
 
@@ -43,20 +45,24 @@ That runs `scripts/build-app.sh`:
 
 Drag the `.app` to `/Applications`, or open the `.dmg` and drag it across.
 
-Output is unsigned (ad-hoc signature only). On another Mac the first launch
-needs right-click → Open, or `xattr -dr com.apple.quarantine "/Applications/Keysight Connect.app"`.
-Signing and notarising needs an Apple Developer ID; add it to the `mac`
-section of `package.json` when you have one.
+Output is unsigned by Apple but ad-hoc signed by `scripts/after-pack.js`, which
+is what makes it launch on Apple Silicon. On another Mac the first launch still
+needs right-click → Open, or
+`xattr -dr com.apple.quarantine "/Applications/Keysight Connect.app"`, because
+there is no notarisation. Signing and notarising properly needs an Apple
+Developer ID; add it to the `mac` section of `package.json` when you have one.
 
 ## What the packaged app does
 
 - Backend: `Resources/backend/keysight-backend/keysight-backend`, frozen, no
-  Python install needed on the target machine
+  Python install needed on the target machine — the app starts it on every
+  launch on a free port and waits for `/api/state` before showing the UI
 - Sessions: `~/Library/Application Support/Keysight Connect/data/sessions/…`
   (File → Open Data Folder)
 - Exports: CSV/ZIP downloads always ask where to save
-- Quitting sends SIGTERM to the backend, then SIGKILL after 4 s; no orphan
-  uvicorn is left behind
+- Quitting sends SIGTERM to the backend, then SIGKILL after 4 s; if the shell
+  is killed outright, the backend notices its parent is gone (watchdog on
+  `KEYSIGHT_PARENT_PID`) and exits within ~2 s, so no orphan holds a port
 
 ## Environment variables
 

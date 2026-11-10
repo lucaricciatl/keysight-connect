@@ -139,7 +139,10 @@ async function startBackend() {
 
   let cmd;
   let args;
-  if (exists(bundled)) {
+  // isFile, not exists: a nested layout (…/keysight-backend/keysight-backend/)
+  // would otherwise have us spawn a directory.
+  const bundledOk = exists(bundled) && fs.statSync(bundled).isFile();
+  if (bundledOk) {
     cmd = bundled;
     args = ['--host', '127.0.0.1', '--port', String(port)];
   } else {
@@ -157,6 +160,8 @@ async function startBackend() {
       PYTHONUNBUFFERED: '1',
       PYTHONDONTWRITEBYTECODE: '1',
       KEYSIGHT_DATA_DIR: dataDir,
+      KEYSIGHT_DIST: path.join(BACKEND_DIR, 'web', 'dist'),
+      KEYSIGHT_PARENT_PID: String(process.pid),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
