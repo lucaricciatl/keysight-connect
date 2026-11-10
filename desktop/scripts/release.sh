@@ -24,8 +24,10 @@ zip="release/Keysight Connect-$version-arm64.app.zip"
 [ -d "$app" ] || { echo "missing $app — run 'npm run dist' first" >&2; exit 1; }
 [ -f "$dmg" ] || { echo "missing $dmg — run 'npm run dist' first" >&2; exit 1; }
 
-if ! gh auth status >/dev/null 2>&1; then
-  echo "gh is not authenticated. Run: gh auth login" >&2
+# `gh auth status` insists on read:org, which a plain repo-scoped PAT lacks and
+# release publishing does not need.  Ask the API instead; GH_TOKEN also works.
+if ! gh api user >/dev/null 2>&1; then
+  echo "gh cannot authenticate. Run 'gh auth login', or export GH_TOKEN." >&2
   exit 1
 fi
 
