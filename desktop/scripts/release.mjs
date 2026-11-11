@@ -45,24 +45,28 @@ function list(dir) {
 
 const assets = [];
 
-if (isWin) {
-  const exe = list(release).filter((f) => f.toLowerCase().endsWith('.exe'));
-  if (!exe.length) {
-    console.error(`no .exe in ${release} — run 'npm run dist' first`);
-    process.exit(1);
-  }
-  for (const f of exe) assets.push(path.join(release, f));
-} else {
+// Collect whatever this platform produced — and anything else already sitting
+// in release/ (e.g. Windows artifacts built on a Windows machine or downloaded
+// from CI), so one `npm run release` can publish both platforms.
+const exes = list(release).filter((f) => f.toLowerCase().endsWith('.exe'));
+for (const f of exes) assets.push(path.join(release, f));
+
+const dmgs = list(release).filter((f) => f.toLowerCase().endsWith('.dmg'));
+for (const f of dmgs) assets.push(path.join(release, f));
+
+if (!isWin) {
   const app = path.join(release, 'mac-arm64', 'Keysight Connect.app');
-  const dmg = list(release).find((f) => f.endsWith('.dmg'));
-  if (!fs.existsSync(app) || !dmg) {
-    console.error(`missing ${app} or a .dmg — run 'npm run dist' first`);
-    process.exit(1);
+  if (fs.existsSync(app)) {
+    const zip = path.join(release, `Keysight Connect-${version}-arm64.app.zip`);
+    console.log('== zipping the .app (ditto, signature-preserving)');
+    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, zip]);
+    assets.unshift(zip);
   }
-  const zip = path.join(release, `Keysight Connect-${version}-arm64.app.zip`);
-  console.log('== zipping the .app (ditto, signature-preserving)');
-  run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, zip]);
-  assets.push(zip, path.join(release, dmg));
+}
+
+if (!assets.length) {
+  console.error(`nothing to publish in ${release} — run 'npm run dist' first`);
+  process.exit(1);
 }
 
 // `gh auth status` insists on read:org, which a plain repo-scoped PAT lacks and
