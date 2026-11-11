@@ -20,6 +20,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const isDev = process.env.KEYSIGHT_DEV === '1' || process.argv.includes('--dev');
+const isWin = process.platform === 'win32';
+const EXE = isWin ? '.exe' : '';
 
 // Without this the macOS menu bar says "Electron" in an unpackaged build.
 app.setName('Keysight Connect');
@@ -98,14 +100,15 @@ async function waitForHttp(url, timeoutMs, alive) {
 /* ---------------------------------------------------------------- backend */
 
 function findPython() {
+  const venvPy = isWin ? path.join('Scripts', 'python.exe') : path.join('bin', 'python3');
   const candidates = [
     process.env.KEYSIGHT_PYTHON,
-    path.join(BACKEND_DIR, '.venv', 'bin', 'python3'),
-    path.join(BACKEND_DIR, 'venv', 'bin', 'python3'),
+    path.join(BACKEND_DIR, '.venv-desktop', venvPy),
+    path.join(BACKEND_DIR, 'venv', venvPy),
   ].filter(Boolean);
   for (const c of candidates) if (exists(c)) return c;
   // Fall back to whatever is on PATH.
-  return ['python3', 'python'].find((p) => p) || 'python3';
+  return isWin ? 'python' : 'python3';
 }
 
 function pipeLines(stream, tag) {
@@ -126,7 +129,7 @@ function pipeLines(stream, tag) {
 }
 
 async function startBackend() {
-  const bundled = path.join(BACKEND_DIR, 'keysight-backend', 'keysight-backend');
+  const bundled = path.join(BACKEND_DIR, 'keysight-backend', `keysight-backend${EXE}`);
   const port = isDev ? DEV_BACKEND_PORT : await freePort();
   const url = `http://127.0.0.1:${port}`;
 
@@ -163,7 +166,10 @@ async function startBackend() {
       KEYSIGHT_DIST: path.join(BACKEND_DIR, 'web', 'dist'),
       KEYSIGHT_PARENT_PID: String(process.pid),
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    // stdin stays open and unwritten: on Windows the backend cannot poll for a
+    // dead parent, so it watches this pipe for EOF instead.
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
   });
 
   pipeLines(backend.stdout, 'out');
@@ -217,10 +223,12 @@ async function ensureVite() {
     return null;
   }
   log('starting Vite dev server');
-  vite = spawn('npm', ['run', 'dev', '--silent'], {
+  vite = spawn(isWin ? 'npm.cmd' : 'npm', ['run', 'dev', '--silent'], {
     cwd: WEB_DIR,
     env: { ...process.env, KEYSIGHT_BACKEND: `http://127.0.0.1:${DEV_BACKEND_PORT}` },
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: isWin,          // .cmd shims need a shell on Windows
+    windowsHide: true,
   });
   vite.stdout.setEncoding('utf8');
   vite.stdout.on('data', (d) => process.stdout.write(`[vite] ${d}`));

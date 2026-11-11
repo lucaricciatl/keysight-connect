@@ -79,9 +79,10 @@ APP_STARTED = time.time()
 def _watch_parent() -> None:
     """Shut down if the desktop shell that spawned us goes away.
 
-    The Electron shell sends SIGTERM on a normal quit, but a crash or a forced
-    kill would otherwise leave this server holding its port.  Only active when
-    KEYSIGHT_PARENT_PID is set, so `python3 -m server.app` is unaffected.
+    POSIX reparents orphans, so polling getppid() is enough there.  Windows
+    does not, so the shell hands us an open, never-written stdin pipe and we
+    watch it for EOF instead.  Only active when KEYSIGHT_PARENT_PID is set, so
+    `python3 -m server.app` is unaffected.
     """
     raw = os.environ.get("KEYSIGHT_PARENT_PID")
     if not raw:
@@ -91,17 +92,33 @@ def _watch_parent() -> None:
     except ValueError:
         return
 
-    def loop() -> None:
-        while True:
-            time.sleep(2.0)
-            if os.getppid() != parent:
-                try:
-                    add_log(None, "desktop shell exited, shutting down", "info")
-                except Exception:                      # noqa: BLE001
-                    pass
-                os._exit(0)
+    def shutdown() -> None:
+        try:
+            add_log(None, "desktop shell exited, shutting down", "info")
+        except Exception:                              # noqa: BLE001
+            pass
+        os._exit(0)
 
-    threading.Thread(target=loop, daemon=True, name="parent-watch").start()
+    if os.name == "nt":
+        def watch_stdin() -> None:
+            try:
+                while sys.stdin.buffer.read(1):
+                    pass
+            except Exception:                          # noqa: BLE001
+                pass
+            shutdown()
+
+        threading.Thread(target=watch_stdin, daemon=True,
+                         name="parent-watch").start()
+    else:
+        def watch_ppid() -> None:
+            while True:
+                time.sleep(2.0)
+                if os.getppid() != parent:
+                    shutdown()
+
+        threading.Thread(target=watch_ppid, daemon=True,
+                         name="parent-watch").start()
 
 
 _watch_parent()

@@ -10,9 +10,9 @@
     "start": "electron .",
     "dev": "KEYSIGHT_DEV=1 electron .",
     "build:web": "npm --prefix ../web run build",
-    "build:backend": "bash scripts/build-backend.sh",
-    "dist": "bash scripts/build-app.sh",
-    "release": "bash scripts/release.sh",
+    "build:backend": "node scripts/build-backend.mjs",
+    "dist": "node scripts/build-app.mjs",
+    "release": "node scripts/release.mjs",
     "icon": "python3 scripts/make-icon.py",
     "probe": "node --experimental-websocket scripts/probe.js"
   },
@@ -56,6 +56,22 @@
     "mac": {
       "category": "public.app-category.utilities",
       "target": [{ "target": "dmg", "arch": ["arm64"] }]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} ${version} portable.${ext}"
     }
   }
 }

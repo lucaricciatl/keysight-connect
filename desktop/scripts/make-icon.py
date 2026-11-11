@@ -22,6 +22,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 OUT = Path(__file__).resolve().parent.parent / "build" / "icon.png"
+ICO = OUT.with_suffix(".ico")
 
 SIZE = 1024
 SS = 3
@@ -139,6 +140,11 @@ def main() -> None:
     out = layer.resize((SIZE, SIZE), Image.LANCZOS)
     out.save(OUT)
     print(f"wrote {OUT} ({out.size[0]}x{out.size[1]}, {len(curve)} curve points)")
+
+    # Windows wants a multi-resolution .ico
+    out.save(ICO, sizes=[(16, 16), (24, 24), (32, 32), (48, 48),
+                         (64, 64), (128, 128), (256, 256)])
+    print(f"wrote {ICO} (7 sizes)")
 
 
 if __name__ == "__main__":

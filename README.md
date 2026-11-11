@@ -82,22 +82,32 @@ cd web && npm run build
 
 ## Desktop app (Electron)
 
-The same UI as a native window, with no terminal and no browser tab. The
-Electron shell starts the backend itself and points the window at it, so the
-front-end is unchanged.
+The same UI as a native window — macOS and Windows — with no terminal and no
+browser tab. The Electron shell starts the backend itself and points the window
+at it, so the front-end is unchanged.
 
 ```bash
 cd desktop
 npm install
 npm start          # normal run: backend on a free port
 npm run dev        # backend :8000 + Vite :5173, hot reload
-npm run dist       # build "Keysight Connect.app" + .dmg into desktop/release/
+npm run dist       # build the host platform's app + installer
 ```
 
-`npm run dist` runs `desktop/scripts/build-app.sh`, which bundles the web app,
-freezes the backend with PyInstaller, and packs both with electron-builder. The
-resulting app needs no Python on the target machine; drag it to
-`/Applications` and double-click.
+`npm run dist` runs `desktop/scripts/build-app.mjs`, which bundles the web app,
+freezes the backend with PyInstaller, and packs both with electron-builder:
+
+| Host | Artifact |
+| --- | --- |
+| macOS | `release/mac-arm64/Keysight Connect.app` + `Keysight Connect-<ver>-arm64.dmg` |
+| Windows | `release/Keysight Connect Setup <ver>.exe` + portable `.exe` |
+
+The result needs no Python on the target machine; drag it to `/Applications`
+or run the installer and double-click.
+
+`.github/workflows/desktop.yml` builds both platforms on every `v*` tag and
+attaches them to the release, so a Windows build does not need a Windows
+machine. `npm run release` publishes the current platform's build directly.
 
 The bundle is ad-hoc signed, not notarised, so the first launch on another Mac
 needs right-click → Open (or `xattr -dr com.apple.quarantine`). Sessions live in
