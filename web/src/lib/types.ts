@@ -92,6 +92,8 @@ export interface AppState {
   job: Job;
   session: Session | null;
   server: { started: number; data_dir: string };
+  last_sweep?: LastSweep | null;
+  last_pulse?: LastPulse | null;
 }
 
 export interface LogEntry {
@@ -109,6 +111,35 @@ export interface SeriesRow {
   amps: number;
   ohms: number | null;
   watts: number | null;
+}
+
+export interface LastSweep {
+  run_id: string;
+  source: SourceFunc;
+  params: {
+    start: number;
+    stop: number;
+    points: number;
+    delay_ms: number;
+    compliance: number;
+  };
+  series: Record<DeviceLetter, SeriesRow[]>;
+  aborted: boolean;
+}
+
+export interface LastPulse {
+  run_id: string;
+  source: SourceFunc;
+  params: {
+    peak: number;
+    base: number;
+    width_ms: number;
+    period_ms: number;
+    count: number;
+  };
+  series: Record<DeviceLetter, { values: number[]; stats: PulseSummary; rows: PulseRow[] }>;
+  skew_ms: number;
+  aborted: boolean;
 }
 
 export interface SweepState {

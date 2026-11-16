@@ -3,7 +3,7 @@ import NumberField from "./NumberField";
 import Plot from "./Plot";
 import { Panel, Segmented, Toggle } from "./ui";
 import { downloadCsv, timestampSlug } from "../lib/csv";
-import { si, siParts } from "../lib/format";
+import { CURRENT_UNITS, si, siParts, VOLTAGE_UNITS } from "../lib/format";
 import type { AppApi } from "../hooks/useApp";
 import type { SourceFunc, WireMode } from "../lib/types";
 
@@ -47,7 +47,7 @@ export default function SweepTab({ app }: { app: AppApi }) {
     () =>
       devices.map((letter) => ({
         name: `Device ${letter}`,
-        color: letter === "A" ? "#38bdf8" : "#f59e0b",
+        color: letter === "A" ? "var(--dev-a)" : "var(--dev-b)",
         points: sweep.rows[letter].map((row) => ({
           x: row.x,
           y:
@@ -138,35 +138,13 @@ export default function SweepTab({ app }: { app: AppApi }) {
             label="Start"
             value={start}
             onChange={setStart}
-            units={
-              source === "VOLT"
-                ? [
-                    { label: "V", scale: 1 },
-                    { label: "mV", scale: 1e-3 },
-                  ]
-                : [
-                    { label: "A", scale: 1 },
-                    { label: "mA", scale: 1e-3 },
-                    { label: "µA", scale: 1e-6 },
-                  ]
-            }
+            units={source === "VOLT" ? VOLTAGE_UNITS : CURRENT_UNITS}
           />
           <NumberField
             label="Stop"
             value={stop}
             onChange={setStop}
-            units={
-              source === "VOLT"
-                ? [
-                    { label: "V", scale: 1 },
-                    { label: "mV", scale: 1e-3 },
-                  ]
-                : [
-                    { label: "A", scale: 1 },
-                    { label: "mA", scale: 1e-3 },
-                    { label: "µA", scale: 1e-6 },
-                  ]
-            }
+            units={source === "VOLT" ? VOLTAGE_UNITS : CURRENT_UNITS}
           />
           <NumberField label="Points" value={points} onChange={setPoints} units={[{ label: "", scale: 1 }]} />
           <NumberField
@@ -182,18 +160,7 @@ export default function SweepTab({ app }: { app: AppApi }) {
             label="Compliance"
             value={compliance}
             onChange={setCompliance}
-            units={
-              source === "VOLT"
-                ? [
-                    { label: "A", scale: 1 },
-                    { label: "mA", scale: 1e-3 },
-                    { label: "µA", scale: 1e-6 },
-                  ]
-                : [
-                    { label: "V", scale: 1 },
-                    { label: "mV", scale: 1e-3 },
-                  ]
-            }
+            units={source === "VOLT" ? CURRENT_UNITS : VOLTAGE_UNITS}
           />
         </div>
 

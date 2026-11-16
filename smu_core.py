@@ -238,22 +238,47 @@ class B2901B:
         self.address = ""
 
     def _shutdown_rm(self) -> None:
-        if self.rm is not None:
+        if self.rm is None:
+            return
+        # pyvisa-py's ResourceManager("@py") is a process-wide singleton: closing
+        # it would also tear down every *other* device's live session. That is
+        # the "connect a second unit and the first one goes unresponsive" bug —
+        # the second B2901B.open() calls close() -> _shutdown_rm(), which kills
+        # the first device's session under it. Only close a manager that is not
+        # that singleton (a real system VISA install).
+        if self.backend != "pyvisa-py":
             try:
                 self.rm.close()
-            except Exception:
+            except Exception:           # noqa: BLE001
                 pass
-            self.rm = None
+        self.rm = None
 
     def safe_shutdown(self) -> None:
-        """Best effort: output off, front panel back to local, port closed."""
+        """Best effort: output off, front panel back to local, port closed.
+
+        Runs with a short timeout so disconnecting a dead/unresponsive unit
+        cannot block the whole backend for the full command timeout twice.
+        """
         if self.inst is None:
             return
-        for cmd in (":OUTPut OFF", ":SYSTem:LOCal"):
-            try:
-                self.inst.write(cmd)
-            except Exception:
-                pass
+        old_timeout = None
+        try:
+            old_timeout = self.inst.timeout
+            self.inst.timeout = 500      # 500 ms is plenty for a healthy unit
+        except Exception:                # noqa: BLE001
+            old_timeout = None
+        try:
+            for cmd in (":OUTPut OFF", ":SYSTem:LOCal"):
+                try:
+                    self.inst.write(cmd)
+                except Exception:        # noqa: BLE001
+                    pass
+        finally:
+            if old_timeout is not None:
+                try:
+                    self.inst.timeout = old_timeout
+                except Exception:        # noqa: BLE001
+                    pass
         self.close()
 
     @property

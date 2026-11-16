@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "../lib/theme";
 
 export interface PlotPoint {
   x: number;
@@ -24,9 +25,25 @@ interface Props {
 }
 
 const PAD = { left: 76, right: 18, top: 16, bottom: 44 };
-const GRID = "rgba(255,255,255,0.055)";
-const AXIS = "rgba(255,255,255,0.18)";
-const TEXT = "#7f8f9f";
+
+function cssVar(name: string, fallback: string): string {
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function resolveColor(color: string): string {
+  // Canvas stroke/fill styles don't resolve CSS custom properties, so turn
+  // "var(--x)" into the concrete colour the active theme resolves it to.
+  if (color.startsWith("var(")) {
+    const name = color.slice(4, -1).trim();
+    return cssVar(name, color);
+  }
+  return color;
+}
 
 function niceTicks(min: number, max: number, count = 5): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max) || count < 1) return [];
@@ -84,6 +101,7 @@ export default function Plot({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState<{ px: number; py: number } | null>(null);
+  const theme = useTheme();
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -149,6 +167,11 @@ export default function Plot({
 
     const plotW = Math.max(w - PAD.left - PAD.right, 10);
     const plotH = Math.max(h - PAD.top - PAD.bottom, 10);
+
+    const TEXT = cssVar("--plot-text", "#7f8f9f");
+    const GRID = cssVar("--plot-grid", "rgba(255,255,255,0.055)");
+    const AXIS = cssVar("--plot-axis", "rgba(255,255,255,0.18)");
+    const CROSSHAIR = cssVar("--plot-crosshair", "rgba(255,255,255,0.28)");
 
     if (!domain) {
       ctx.fillStyle = TEXT;
@@ -218,7 +241,7 @@ export default function Plot({
       );
       if (!points.length) continue;
       ctx.save();
-      ctx.strokeStyle = line.color;
+      ctx.strokeStyle = resolveColor(line.color);
       ctx.lineWidth = 2;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
@@ -234,7 +257,7 @@ export default function Plot({
       ctx.restore();
 
       if (points.length <= 220) {
-        ctx.fillStyle = line.color;
+        ctx.fillStyle = resolveColor(line.color);
         for (const point of points) {
           ctx.beginPath();
           ctx.arc(toX(point.x), toY(point.y), 2.2, 0, Math.PI * 2);
@@ -271,7 +294,7 @@ export default function Plot({
       }
       if (nearest) {
         const px = Math.round(toX(nearest.point.x)) + 0.5;
-        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        ctx.strokeStyle = CROSSHAIR;
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
         ctx.beginPath();
@@ -282,14 +305,14 @@ export default function Plot({
         for (const line of series) {
           const point = line.points.find((p) => Math.abs(p.x - nearest!.point.x) < 1e-12);
           if (!point || !Number.isFinite(point.y)) continue;
-          ctx.fillStyle = line.color;
+          ctx.fillStyle = resolveColor(line.color);
           ctx.beginPath();
           ctx.arc(toX(point.x), toY(point.y), 3.4, 0, Math.PI * 2);
           ctx.fill();
         }
       }
     }
-  }, [domain, hover, width, height, series, logY, xLabel, yLabel, xFormat, yFormat, empty, hasData]);
+  }, [domain, hover, width, height, series, logY, xLabel, yLabel, xFormat, yFormat, empty, hasData, theme]);
 
   const tooltip = useMemo(() => {
     if (!hover || !domain || !hasData) return null;

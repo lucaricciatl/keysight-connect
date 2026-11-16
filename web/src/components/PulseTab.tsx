@@ -3,7 +3,7 @@ import NumberField from "./NumberField";
 import Plot from "./Plot";
 import { Panel, Segmented, Toggle } from "./ui";
 import { downloadCsv, timestampSlug } from "../lib/csv";
-import { measureUnit, si, siParts } from "../lib/format";
+import { CURRENT_UNITS, measureUnit, si, siParts, VOLTAGE_UNITS } from "../lib/format";
 import type { AppApi } from "../hooks/useApp";
 import type { SourceFunc, WireMode } from "../lib/types";
 
@@ -92,7 +92,7 @@ export default function PulseTab({ app }: { app: AppApi }) {
     () =>
       devices.map((letter) => ({
         name: `Device ${letter}`,
-        color: letter === "A" ? "#38bdf8" : "#f59e0b",
+        color: letter === "A" ? "var(--dev-a)" : "var(--dev-b)",
         points: pulse.rows[letter].map((row) => ({ x: row.index, y: row.measured })),
       })),
     [devices, pulse.rows],
@@ -185,33 +185,13 @@ export default function PulseTab({ app }: { app: AppApi }) {
             label="Base"
             value={base}
             onChange={setBase}
-            units={
-              source === "VOLT"
-                ? [
-                    { label: "V", scale: 1 },
-                    { label: "mV", scale: 1e-3 },
-                  ]
-                : [
-                    { label: "A", scale: 1 },
-                    { label: "mA", scale: 1e-3 },
-                  ]
-            }
+            units={source === "VOLT" ? VOLTAGE_UNITS : CURRENT_UNITS}
           />
           <NumberField
             label="Peak"
             value={peak}
             onChange={setPeak}
-            units={
-              source === "VOLT"
-                ? [
-                    { label: "V", scale: 1 },
-                    { label: "mV", scale: 1e-3 },
-                  ]
-                : [
-                    { label: "A", scale: 1 },
-                    { label: "mA", scale: 1e-3 },
-                  ]
-            }
+            units={source === "VOLT" ? VOLTAGE_UNITS : CURRENT_UNITS}
           />
           <NumberField label="Width" value={width} onChange={setWidth} units={MS} />
           <NumberField label="Period" value={period} onChange={setPeriod} units={MS} />
@@ -221,18 +201,7 @@ export default function PulseTab({ app }: { app: AppApi }) {
             label="Compliance"
             value={compliance}
             onChange={setCompliance}
-            units={
-              source === "VOLT"
-                ? [
-                    { label: "A", scale: 1 },
-                    { label: "mA", scale: 1e-3 },
-                    { label: "µA", scale: 1e-6 },
-                  ]
-                : [
-                    { label: "V", scale: 1 },
-                    { label: "mV", scale: 1e-3 },
-                  ]
-            }
+            units={source === "VOLT" ? CURRENT_UNITS : VOLTAGE_UNITS}
           />
           <NumberField label="Pulses" value={count} onChange={setCount} units={[{ label: "", scale: 1 }]} />
         </div>

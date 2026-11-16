@@ -45,6 +45,27 @@ export function sourceUnit(source: string): string {
   return SOURCE_UNITS[source] ?? "";
 }
 
+export interface UnitOption {
+  label: string;
+  scale: number;
+}
+
+export const VOLTAGE_UNITS: UnitOption[] = [
+  { label: "V", scale: 1 },
+  { label: "mV", scale: 1e-3 },
+  { label: "µV", scale: 1e-6 },
+  { label: "nV", scale: 1e-9 },
+  { label: "pV", scale: 1e-12 },
+];
+
+export const CURRENT_UNITS: UnitOption[] = [
+  { label: "A", scale: 1 },
+  { label: "mA", scale: 1e-3 },
+  { label: "µA", scale: 1e-6 },
+  { label: "nA", scale: 1e-9 },
+  { label: "pA", scale: 1e-12 },
+];
+
 export function measureFunc(source: string): "volts" | "amps" {
   return source === "VOLT" ? "amps" : "volts";
 }

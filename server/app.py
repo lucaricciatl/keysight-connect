@@ -456,6 +456,9 @@ SETTINGS: dict[str, Any] = {
 SESSION: Optional[Session] = None
 STREAM = {"running": False, "interval_ms": 500, "source": "timer"}
 JOB: dict[str, Any] = {"state": "idle"}
+# Last completed run, cached so the front-end can restore the plot after a
+# websocket reconnect or page reload without re-running the sweep/pulse.
+LAST_RUN: dict[str, Any] = {"sweep": None, "pulse": None}
 
 
 def settings_public() -> dict:
@@ -533,6 +536,8 @@ def build_state() -> dict:
         "job": job_public(),
         "session": SESSION.meta() if SESSION else None,
         "server": {"started": APP_STARTED, "data_dir": str(DATA_DIR)},
+        "last_sweep": LAST_RUN["sweep"],
+        "last_pulse": LAST_RUN["pulse"],
     }
 
 
@@ -1042,6 +1047,10 @@ def run_sweep(stop: threading.Event) -> None:
         emit("sweep_done", run_id=run_id, aborted=stop.is_set(),
              series=series,
              output_off=bool(p.get("output_off", True)))
+        LAST_RUN["sweep"] = {
+            "run_id": run_id, "source": src, "params": p,
+            "series": series, "aborted": stop.is_set(),
+        }
         if SESSION:
             SESSION.event(f"sweep {run_id} finished "
                           f"({JOB['progress']}/{JOB['total']})")
@@ -1163,6 +1172,10 @@ def run_pulse(stop: threading.Event) -> None:
 
     emit("pulse_done", run_id=run_id, aborted=stop.is_set(), series=series,
          skew_ms=skew * 1e3, output_off=bool(p.get("output_off", True)))
+    LAST_RUN["pulse"] = {
+        "run_id": run_id, "source": src, "params": p,
+        "series": series, "skew_ms": skew * 1e3, "aborted": stop.is_set(),
+    }
     if SESSION:
         SESSION.event(f"pulse {run_id} finished ({len(samples[devs[0].letter])} samples)")
 

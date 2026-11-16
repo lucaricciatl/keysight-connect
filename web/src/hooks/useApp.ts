@@ -64,14 +64,58 @@ export function useApp() {
     }
   }, []);
 
+  // Rebuild the sweep/pulse plots from the server's cached last run, so a
+  // missed websocket `*_done` frame (drop, reconnect, background tab) does not
+  // leave the curve permanently empty.
+  const restoreRuns = useCallback((next: AppState) => {
+    if (next.job?.state === "running") return;   // never clobber a live run
+    const ls = next.last_sweep;
+    if (ls) {
+      setSweep({
+        runId: ls.run_id,
+        source: ls.source,
+        running: false,
+        aborted: Boolean(ls.aborted),
+        rows: { A: ls.series.A ?? [], B: ls.series.B ?? [] },
+        params: {
+          start: ls.params.start,
+          stop: ls.params.stop,
+          points: ls.params.points,
+          delay_ms: ls.params.delay_ms,
+          compliance: ls.params.compliance,
+        },
+      });
+    }
+    const lp = next.last_pulse;
+    if (lp) {
+      setPulse({
+        runId: lp.run_id,
+        source: lp.source,
+        running: false,
+        aborted: Boolean(lp.aborted),
+        rows: { A: lp.series.A?.rows ?? [], B: lp.series.B?.rows ?? [] },
+        stats: { A: lp.series.A?.stats ?? null, B: lp.series.B?.stats ?? null },
+        skew_ms: lp.skew_ms ?? null,
+        params: {
+          peak: lp.params.peak,
+          base: lp.params.base,
+          width_ms: lp.params.width_ms,
+          period_ms: lp.params.period_ms,
+          count: lp.params.count,
+        },
+      });
+    }
+  }, []);
+
   const refreshState = useCallback(async () => {
     try {
       const next = (await get("/api/state")) as AppState;
       setState(next);
+      restoreRuns(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [restoreRuns]);
 
   useEffect(() => {
     mounted.current = true;
@@ -286,14 +330,16 @@ export function useApp() {
   }, [refreshState]);
 
   const act = useCallback(
-    async (label: string, fn: () => Promise<unknown>) => {
+    async <T,>(label: string, fn: () => Promise<T>): Promise<T | undefined> => {
       setBusy(label);
       setError(null);
       try {
-        await fn();
+        const result = await fn();
         await refreshState();
+        return result;
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
+        return undefined;
       } finally {
         if (mounted.current) setBusy(null);
       }
@@ -319,7 +365,30 @@ export function useApp() {
       wire: WireMode;
       sync_mode?: SyncMode;
     }) => act("configure", () => api.configure(payload)),
-    measureOnce: () => act("measure", () => api.measure()),
+    measureOnce: () =>
+      act("measure", async () => {
+        const res = (await api.measure()) as {
+          readings?: (Reading & { device?: DeviceLetter })[];
+        };
+        // Feed the one-shot into the live buffer too, so the plot shows it even
+        // if the matching websocket `reading` frame was missed.
+        const readings = res?.readings;
+        if (Array.isArray(readings)) {
+          setBuffer((prev) => {
+            const next = { ...prev };
+            for (const r of readings) {
+              const letter = r.device;
+              if (!letter) continue;
+              const list = next[letter] ?? [];
+              const tail = list[list.length - 1];
+              if (tail && tail.time === r.time) continue; // already via ws
+              next[letter] = [...list, r].slice(-MAX_BUFFER);
+            }
+            return next;
+          });
+        }
+        return res;
+      }),
     streamStart: (interval_ms: number) =>
       act("stream", () => api.streamStart(interval_ms)),
     streamStop: () => act("stream", () => api.streamStop()),

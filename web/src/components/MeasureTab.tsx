@@ -4,11 +4,14 @@ import Plot from "./Plot";
 import Readout, { StatRow } from "./Readout";
 import { Panel, Segmented, Toggle } from "./ui";
 import {
+  CURRENT_UNITS,
   quantityLabel,
   quantityUnit,
   si,
   siParts,
   sourceUnit,
+  VOLTAGE_UNITS,
+  type UnitOption,
 } from "../lib/format";
 import type { AppApi } from "../hooks/useApp";
 import type { DeviceLetter, Quantity, Reading, SourceFunc, WireMode } from "../lib/types";
@@ -18,28 +21,14 @@ const DEVICE_COLORS: Record<DeviceLetter, string> = {
   B: "var(--dev-b)",
 };
 
-const LEVEL_UNITS: Record<SourceFunc, { label: string; scale: number }[]> = {
-  VOLT: [
-    { label: "V", scale: 1 },
-    { label: "mV", scale: 1e-3 },
-  ],
-  CURR: [
-    { label: "A", scale: 1 },
-    { label: "mA", scale: 1e-3 },
-    { label: "µA", scale: 1e-6 },
-  ],
+const LEVEL_UNITS: Record<SourceFunc, UnitOption[]> = {
+  VOLT: VOLTAGE_UNITS,
+  CURR: CURRENT_UNITS,
 };
 
-const LIMIT_UNITS: Record<SourceFunc, { label: string; scale: number }[]> = {
-  VOLT: [
-    { label: "A", scale: 1 },
-    { label: "mA", scale: 1e-3 },
-    { label: "µA", scale: 1e-6 },
-  ],
-  CURR: [
-    { label: "V", scale: 1 },
-    { label: "mV", scale: 1e-3 },
-  ],
+const LIMIT_UNITS: Record<SourceFunc, UnitOption[]> = {
+  VOLT: CURRENT_UNITS,
+  CURR: VOLTAGE_UNITS,
 };
 
 function pick(reading: Reading, quantity: Quantity): number {
@@ -80,7 +69,7 @@ export default function MeasureTab({ app }: { app: AppApi }) {
       .filter((letter) => buffer[letter].length > 0)
       .map((letter) => ({
         name: `Device ${letter}`,
-        color: letter === "A" ? "#38bdf8" : "#f59e0b",
+        color: letter === "A" ? "var(--dev-a)" : "var(--dev-b)",
         points: buffer[letter]
           .slice(-1500)
           .map((reading) => ({
@@ -222,15 +211,15 @@ export default function MeasureTab({ app }: { app: AppApi }) {
                     </button>
                   </div>
                   <div className="readout-grid">
-                    <Readout label="Voltage" value={device.last?.volts} unit="V" accent="#e8eef6" />
+                    <Readout label="Voltage" value={device.last?.volts} unit="V" accent="var(--readout-volt)" />
                     <Readout
                       label="Current"
                       value={device.last?.amps}
                       unit="A"
                       accent={DEVICE_COLORS[letter]}
                     />
-                    <Readout label="Resistance" value={device.last?.ohms} unit="Ω" accent="#c4b5fd" />
-                    <Readout label="Power" value={device.last?.watts} unit="W" accent="#5eead4" />
+                    <Readout label="Resistance" value={device.last?.ohms} unit="Ω" accent="var(--readout-ohm)" />
+                    <Readout label="Power" value={device.last?.watts} unit="W" accent="var(--readout-watt)" />
                   </div>
                   <StatRow
                     min={metrics.min}

@@ -9,12 +9,46 @@ const DEFAULTS: Record<DeviceLetter, ConnectionConfig> = {
   B: { address: "127.0.0.1", transport: "socket", port: 5026, timeout_ms: 10000 },
 };
 
+const STORAGE_KEY = "keysight-connect.connection";
+
+function loadPersisted(): Record<DeviceLetter, ConnectionConfig> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULTS;
+    const parsed = JSON.parse(raw) as Partial<Record<DeviceLetter, Partial<ConnectionConfig>>>;
+    const merged: Record<DeviceLetter, ConnectionConfig> = { ...DEFAULTS };
+    for (const letter of ["A", "B"] as const) {
+      const saved = parsed[letter];
+      if (!saved) continue;
+      merged[letter] = {
+        address: typeof saved.address === "string" ? saved.address : DEFAULTS[letter].address,
+        transport: typeof saved.transport === "string" ? saved.transport : DEFAULTS[letter].transport,
+        port: typeof saved.port === "number" ? saved.port : DEFAULTS[letter].port,
+        timeout_ms:
+          typeof saved.timeout_ms === "number" ? saved.timeout_ms : DEFAULTS[letter].timeout_ms,
+      };
+    }
+    return merged;
+  } catch {
+    return DEFAULTS;
+  }
+}
+
 export default function ConnectionPanel({ app }: { app: AppApi }) {
   const { state, actions, busy } = app;
-  const [forms, setForms] = useState(DEFAULTS);
+  const [forms, setForms] = useState<Record<DeviceLetter, ConnectionConfig>>(loadPersisted);
   const [deviceB, setDeviceB] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [syncMode, setSyncMode] = useState<SyncMode>("trigger");
+
+  // Persist the address/port/transport/timeout so a restart remembers the units.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(forms));
+    } catch {
+      /* storage may be unavailable (private mode); ignore */
+    }
+  }, [forms]);
 
   useEffect(() => {
     if (!state) return;
